@@ -57,12 +57,28 @@ def img_grey(img_str):
     target_img = cv2.imread(img_str)
     gray_img = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
     return gray_img
-def pdf_to_img(file_path,destination_folder):
-    # convert pdf to image
+def pdf_to_img(file_path,destination_folder,img_name,split_img=False,split_dic={}):
+    """convert pdf to image
+    Args:
+    file_path : pdf to be turned into images
+    destination_folder : folder images are to be deposited
+    img_name : name of image files you create - will be appended with a number
+    split_img : optional argument: 'horizontal' or' 'vertical'
+    split_dic : dictionary of the page numbers that you want - so if split two pages horizontally
+                you will want {0:[7,1]} to split page 0 into image 7 and image 1"""
     pages = convert_from_path(file_path, 200,fmt="jpg")
+    if split_img !=False and len(split_dic.keys())==0:
+        split_dic = {count:[count*2+1,count*2+2] for count,p in enumerate(pages)}
     for count,page in enumerate(pages):
-        img_name = "{0}/page_{1}.jpg".format(destination_folder,count)
-        page.save(img_name, 'JPEG')
+        if split_img==False:
+            img_name = "{0}/{1}_{2}.jpg".format(destination_folder,img_name,count)
+            page.save(img_name, 'JPEG')
+        else:
+            img_name_1 = "{0}/{1}_{2}.jpg".format(destination_folder,img_name,split_dic[count][0])
+            img_name_2 = "{0}/{1}_{2}.jpg".format(destination_folder,img_name,split_dic[count][1])
+            img1,img2 = image_splitter(page,split_img)
+            img1.save(img_name_1,'JPEG')
+            img2.save(img_name_2,'JPEG')
 def rotate_image(image, angle):
     image_center = tuple(np.array(image.shape[1::-1]) / 2)
     # change last arg from 1 to 0.1
@@ -70,8 +86,23 @@ def rotate_image(image, angle):
     result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR,borderValue=(255,255,255))
     return result
 
+def image_splitter(img,dimension="horizontal"):
+    """
+    img : image loaded
+    dimension: 'horizontal' or 'vertical'
+    """
+    imgwidth, imgheight = img.size
+    if dimension.lower()=="horizontal":
+        img1 = img.crop((0,0,int(imgwidth/2),imgheight))
+        img2 = img.crop((int(imgwidth/2),0,imgwidth,imgheight))
+    elif dimension.lower()=="vertical":
+        img1 = img.crop((0,0,imgwidth,int(imgheight/2)))
+        img2 = img.crop((0,int(imgheight/2),imgwidth,imgheight))
+    else:
+        print("dimension argument incorrect")
+        return None
+    return img1,img2
 
-# In[ ]:
 
 
 
