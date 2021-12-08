@@ -439,5 +439,83 @@ def image_splitter(img,dimension="horizontal"):
         print("dimension argument incorrect")
         return None
     return img1,img2
+def img_dictionary_creator6_7(img_str,df,page=6,image_border = 5,clean=False):
+    """
+    Output : a dictionary of questions & Answers: {Page_Box_Question : [Image1,Image2]}
+    """
+    select_list = ["PercentageHeightfromBottom","PercentageHeighttoBottom","PercentagefromRight","PercentagetoRight"]
+    return_dictionary = {}
+    threshhold_level = 180
+    img = cv2.imread(img_str)
+    imgContours = img.copy()
+    imgBiggestContour = img.copy()
+    # grey scale
+    imgGrey = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    imgBlur = cv2.GaussianBlur(imgGrey,(5,5),1)
+    imgCanny = cv2.Canny(imgBlur,10,50)
+    boxes = max(df[df["Page"]==page]["Box"])
+    # find contours of the page
+    contours, heirarchy = cv2.findContours(imgCanny,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+    # find rectangles
+    rectangle_contours = rectContour(contours)
+    if clean==True:
+        boxes-=1
+    for box in range(0,boxes+1):
+        biggestCorner = reorder(getCornerPoints(rectangle_contours[box]))
+        x,y,w,h=return_img_coords(biggestCorner)
+        imgWarpColoured = img[y:y+h, x:x+w]
+        img_small_cut = img[y:y+h, x:x+w]
+        # Uncomment below to see each box
+        #plt.imshow(img_small_cut)
+        #plt.show()
+        # Apply threshold so that we can look at a binary response to pixels
 
+        # Commented out - as may need coloured image to find best squares
+        imgWarpGrey = cv2.cvtColor(imgWarpColoured,cv2.COLOR_BGR2GRAY)
+        imgThresh = cv2.threshold(imgWarpGrey,threshhold_level,255,cv2.THRESH_BINARY_INV)[1]
+        imgBiggestContour = imgThresh.copy()
+
+        # proportion that question consumes:
+        # Get rid of the question side of the box - so we can just look at the answers
+        questions = max(list(df[(df["Box"]==box)&(df["Page"]==page)]["Question"]))
+        
+        # iterate over the questions
+        for q in range(1,questions+1):
+            h,w=imgBiggestContour.shape
+            #print("Question: {0}".format(str(q)))
+            answer_df=df[(df["Box"]==box)&(df["Page"]==page)&(df["Question"]==q)]
+            return_key = "{0}_{1}_{2}".format(str(page),str(box),str(q))
+            
+            # need to cut original image each time by the question &, then by the left/right/ up/down %
+            
+            question_percentage = max(answer_df["Question Right Percentage"])
+            # cut the left side of the image off where the question is
+            left = int(w*question_percentage)
+            imgBiggestContour_Question=imgBiggestContour[:,left:w]
+            h,w=imgBiggestContour_Question.shape
+            answers = list(answer_df["Answer Number"])
+            
+            #iterate over the answers
+            for a in answers:
+                #print("Answer: {0}".format(str(a)))
+                test_df = answer_df[answer_df["Answer Number"]==a][select_list]
+                #["PercentageHeightfromBottom","PercentageHeighttoBottom","PercentagefromRight","PercentagetoRight"]
+                # get the dimensions of the box you want
+                pcHfB=test_df.iloc[0][0]
+                pcHtB=test_df.iloc[0][1]
+                pcfR=test_df.iloc[0][2]
+                pctR=test_df.iloc[0][3]
+                top,bottom,left,right = int(h*pcHfB)+image_border,int(h*pcHtB)-image_border,int(w*pcfR)+image_border,int(w*pctR)-image_border
+                # img dimensions go height, width
+                # return your image
+                answer_img = imgBiggestContour_Question[top:bottom,left:right]
+                #plt.imshow(answer_img)
+                #plt.show()
+                if return_key in return_dictionary.keys():
+                    return_dictionary[return_key].append(answer_img)
+                else:
+                    return_dictionary[return_key] = [answer_img]
+                #return test_df
+    return return_dictionary
+           
 print("Functions built")
